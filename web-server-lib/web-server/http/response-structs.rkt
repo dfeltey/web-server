@@ -1,11 +1,13 @@
-#lang racket/base
-(require racket/contract 
-         web-server/http/request-structs)
+#lang typed/racket/base
+(require #;racket/contract 
+         web-server/http/typed-request-structs #;web-server/http/request-structs)
 
+(: TEXT/HTML-MIME-TYPE Bytes)
 (define TEXT/HTML-MIME-TYPE #"text/html; charset=utf-8")
 
-(struct response (code message seconds mime headers output))
+(struct response ([code : Number] [message : Bytes] [seconds : Number] [mime : (Option Bytes)] [headers : (Listof header)] [output : (-> Output-Port Void)]))
 
+(: response/full (-> Number Bytes Number (Option Bytes) (Listof header) (Listof Bytes) response))
 (define (response/full code message seconds mime headers body)
   (response code message seconds mime
             (list* (make-header #"Content-Length" 
@@ -19,6 +21,13 @@
               (for ([b (in-list body)])
                 (write-bytes b op)))))
 
+(: response/output (->* ((-> Output-Port Void))
+                        (#:code Number
+                         #:message Bytes
+                         #:seconds Number
+                         #:mime-type (Option Bytes)
+                         #:headers (Listof header))
+                        response))
 (define (response/output output
                          #:code [code 200]
                          #:message [message #"Okay"]
@@ -28,8 +37,12 @@
   (response code message seconds mime-type headers
             output))
 
+(provide (struct-out response)
+         response/full
+         response/output
+         TEXT/HTML-MIME-TYPE)
 
-(provide/contract
+#;(provide/contract
  [struct response
          ([code number?]
           [message bytes?]

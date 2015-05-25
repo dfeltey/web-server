@@ -1,31 +1,42 @@
-#lang racket/base
-(require racket/contract
-         racket/async-channel)
+;; NOTE:
+;; Sometimes when a functions has an argument
+;; with the same name as a struct/type name
+;; then the name of the type becomes no longer in scope
+;; requiring a type alias definition
 
-(struct timer-manager (thread timer-ch))
-(define-struct timer (tm evt expire-seconds action)
+
+#lang typed/racket/base
+(require ;racket/contract
+         typed/racket/async-channel)
+
+(struct timer-manager ([thread : Thread] [timer-ch : (Async-Channelof (-> (Listof timer) (Listof timer)))]))
+(define-struct timer ([tm : timer-manager] [evt : (Evtof Any)] [expire-seconds : Real] [action : (-> Void)])
   #:mutable)
+
+(define-type Timer timer)
 
 ;; start-timer-manager : -> timer-manager?
 ;; The timer manager thread
+(: start-timer-manager (-> timer-manager))
 (define (start-timer-manager)
+  (: timer-ch (Async-Channelof (-> (Listof timer) (Listof timer))))
   (define timer-ch (make-async-channel))
   (timer-manager
    (thread
     (lambda ()
-      (let loop ([timers null])
+      (let loop ([timers : (Listof timer) null])
         ;; (printf "Timers: ~a\n" (length timers))
         ;; Wait for either...
         (apply sync
                ;; ... a timer-request message ...
                (handle-evt
                 timer-ch
-                (lambda (req)
+                (lambda ([req : (-> (Listof timer) (Listof timer))])
                   ;; represent a req as a (timer-list -> timer-list) function:
                   ;; add/remove/change timer evet:
                   (loop (req timers))))
                ;; ... or a timer
-               (map (lambda (timer)
+               (map (lambda ([timer : timer])
                       (handle-evt
                        (timer-evt timer)
                        (lambda (_)
@@ -39,6 +50,7 @@
 ;;  requests directly, because it's executed directly by
 ;;  the timer-manager thread
 ;; add-timer : timer-manager number (-> void) -> timer
+(: add-timer (-> timer-manager Real (-> Void) timer))
 (define (add-timer manager msecs thunk)
   (define now (current-inexact-milliseconds))
   (define t
@@ -46,7 +58,7 @@
            (alarm-evt (+ now msecs))
            (+ now msecs)
            thunk))
-  (async-channel-put
+  ((inst async-channel-put (-> (Listof timer) (Listof timer)))
    (timer-manager-timer-ch manager)
    (lambda (timers)
      (list* t timers)))
@@ -54,9 +66,10 @@
 
 ;; revise-timer! : timer msecs (-> void) -> timer
 ;; revise the timer to ring msecs from now
+(: revise-timer! (-> timer Real (-> Void) Void))
 (define (revise-timer! timer msecs thunk)
   (define now (current-inexact-milliseconds))
-  (async-channel-put
+  ((inst async-channel-put (-> (Listof Timer) (Listof Timer)))
    (timer-manager-timer-ch (timer-tm timer))
    (lambda (timers)
      (set-timer-evt! timer (alarm-evt (+ now msecs)))
@@ -64,31 +77,42 @@
      (set-timer-action! timer thunk)
      timers)))
 
+(: cancel-timer! (-> timer Void))
 (define (cancel-timer! timer)
   (async-channel-put
    (timer-manager-timer-ch (timer-tm timer))
-   (lambda (timers)
-     (remq timer timers))))
+   (lambda ([timers : (Listof Timer)])
+     ((inst remq Timer) timer timers))))
 
 ;; start-timer : timer-manager num (-> void) -> timer
 ;; to make a timer that calls to-do after sec from make-timer's application
+(: start-timer (-> timer-manager Real (-> Void) timer))
 (define (start-timer tm secs to-do)
   (add-timer tm (* 1000 secs) to-do))
 
 ;; reset-timer : timer num -> void
 ;; to cause timer to expire after sec from the adjust-msec-to-live's application
+(: reset-timer! (-> timer Real Any))
 (define (reset-timer! timer secs)
   (revise-timer! timer (* 1000 secs) (timer-action timer)))
 
 ;; increment-timer! : timer num -> void
 ;; add secs to the timer, rather than replace
+(: increment-timer! (-> timer Real Any))
 (define (increment-timer! timer secs)
   (revise-timer! timer
                  (+ (- (timer-expire-seconds timer) (current-inexact-milliseconds))
                     (* 1000 secs))
                  (timer-action timer)))
 
-
+(provide timer-manager?
+         (struct-out timer)
+         start-timer-manager
+         start-timer
+         reset-timer!
+         increment-timer!
+         cancel-timer!)
+#;
 (provide/contract
  [timer-manager?
   (-> any/c boolean?)]

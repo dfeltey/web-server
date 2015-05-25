@@ -1,32 +1,47 @@
-#lang racket/base
-(require mzlib/contract
-         net/url)
+#lang typed/racket/base
+(require ;mzlib/contract
+         typed/net/url)
 (require web-server/http/response-structs
-         web-server/http/request-structs
-         "../private/util.rkt")           
+         web-server/http/typed-request-structs ;web-server/http/request-structs
+         #;"../private/util.rkt") ; this seems unused in this file      
 
 ; configuration-table = (make-configuration-table nat nat num host-table (listof (cons str host-table)))
 (define-struct configuration-table
-  (port max-waiting initial-connection-timeout default-host virtual-hosts))
+  ([port : Natural] [max-waiting : Natural] [initial-connection-timeout : Natural] [default-host : host-table] [virtual-hosts : (Listof (Pairof String host-table))]))
 
 ; host-table = (make-host-table (listof str) sym messages timeouts paths)
-(define-struct host-table (indices log-format messages timeouts paths))
+(define-struct host-table ([indices : (Listof String)] [log-format : Symbol] [messages : messages] [timeouts : timeouts] [paths : paths]))
 
-(define-struct host (indices log-format log-path passwords responders timeouts paths))  
+(define-struct host ([indices : (Listof String)] [log-format : Symbol] [log-path : (Option Path-String)] [passwords : (Option Path-String)] [responders : responders] [timeouts : timeouts] [paths : paths]))  
 
 (define-struct responders
-  (servlet servlet-loading authentication servlets-refreshed passwords-refreshed file-not-found protocol collect-garbage))
+  ([servlet : (-> url Any response)]
+   [servlet-loading : (-> url Any response)]
+   [authentication : (-> url header response)]
+   [servlets-refreshed : (-> response)]
+   [passwords-refreshed : (-> response)]
+   [file-not-found : (-> request response)]
+   [protocol : (-> url response)]
+   [collect-garbage : (-> response)]))
 
 ; messages = (make-messages str^6)
 (define-struct messages
-  (servlet authentication servlets-refreshed passwords-refreshed file-not-found protocol collect-garbage))
+  ([servlet : String] [authentication : String] [servlets-refreshed : String] [passwords-refreshed : String] [file-not-found : String] [protocol : String] [collect-garbage : String]))
 
 ; timeouts = (make-timeouts nat^5)
-(define-struct timeouts (default-servlet password servlet-connection file-per-byte file-base))
+(define-struct timeouts ([default-servlet : Natural] [password : Natural] [servlet-connection : Natural] [file-per-byte : Natural] [file-base : Natural]))
 
 ; paths = (make-paths str^6)
-(define-struct paths (conf host-base log htdocs servlet mime-types passwords))
+(define-struct paths ([conf : Path-String] [host-base : Path-String] [log : Path-String] [htdocs : Path-String] [servlet : Path-String] [mime-types : Path-String] [passwords : Path-String]))
 
+(provide (struct-out configuration-table)
+         (struct-out host-table)
+         (struct-out host)
+         (struct-out responders)
+         (struct-out messages)
+         (struct-out timeouts)
+         (struct-out paths))
+#;
 (provide/contract
  [struct configuration-table
          ([port port-number?]
