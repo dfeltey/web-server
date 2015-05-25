@@ -104,8 +104,9 @@
                  (+ (- (timer-expire-seconds timer) (current-inexact-milliseconds))
                     (* 1000 secs))
                  (timer-action timer)))
-
+(define-type Timer-Manager timer-manager)
 (provide timer-manager?
+         Timer-Manager
          (struct-out timer)
          start-timer-manager
          start-timer

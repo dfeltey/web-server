@@ -1,13 +1,13 @@
 #lang racket/base
 (require racket/unit
          net/tcp-sig)
-(require web-server/web-server-sig
+(require web-server/web-server-sig ; typed
          web-server/web-config-sig
          web-server/private/dispatch-server-unit
-         web-server/private/dispatch-server-sig
-         web-server/private/web-server-structs
+         web-server/private/dispatch-server-sig ; typed
+         web-server/private/web-server-structs ; typed
          web-server/private/mime-types
-         web-server/configuration/configuration-table-structs
+         web-server/configuration/configuration-table-structs ; typed
          web-server/private/cache-table
          web-server/private/raw-dispatch-server-connect-unit
          (prefix-in http: web-server/http/request))
